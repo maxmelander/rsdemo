@@ -13,24 +13,19 @@ struct Header {
 }
 
 impl Header {
+    fn load_part<const SIZE: usize, T: Read + Seek>(reader: &mut T, offset: u64) -> Result<[u8; SIZE], std::io::Error> {
+        let mut buffer = [0; SIZE];
+        reader.seek(std::io::SeekFrom::Start(offset))?;
+        reader.take(SIZE as u64).read(&mut buffer)?;
+        Ok(buffer)
+    }
     fn load<T: Read + Seek>(reader: &mut T) -> Result<Self, std::io::Error> {
-        macro_rules! load_part{
-            ($s: literal, $o: literal) => {
-                {
-                    let mut buffer = [0; $s];
-                    reader.seek(std::io::SeekFrom::Start($o))?;
-                    reader.take($s).read(&mut buffer)?;
-                    buffer
-                }
-            }
-        }
-
-        let mut header = Self {
-            audio_format: u16::from_le_bytes(load_part!(2, 20)),
-            num_channels: u16::from_le_bytes(load_part!(2, 22)),
-            sample_rate: u32::from_le_bytes(load_part!(4, 24)),
-            byte_rate: u32::from_le_bytes(load_part!(4, 28)),
-            bits_per_sample: u16::from_le_bytes(load_part!(2, 34))
+        let header = Self {
+            audio_format: u16::from_le_bytes(Self::load_part(reader, 20)?),
+            num_channels: u16::from_le_bytes(Self::load_part(reader, 22)?),
+            sample_rate: u32::from_le_bytes(Self::load_part(reader, 24)?),
+            byte_rate: u32::from_le_bytes(Self::load_part(reader, 28)?),
+            bits_per_sample: u16::from_le_bytes(Self::load_part(reader, 34)?)
         };
 
         Ok(dbg!(header))
@@ -38,7 +33,7 @@ impl Header {
 }
 
 fn main() -> std::io::Result<()> {
-    let file = OpenOptions::new().read(true).open("/Users/maxmelander/Development/rsdemo/data/test.wav")?;
+    let file = OpenOptions::new().read(true).open("/home/maxel/Development/rsdemo/data/test.wav")?;
     let mut buf_reader = BufReader::new(file);
 
     _ = Header::load(&mut buf_reader);
