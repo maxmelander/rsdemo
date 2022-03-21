@@ -32,15 +32,13 @@ impl Wav {
         reader: &mut T,
         data_size: usize,
     ) -> Result<Vec<f32>, std::io::Error> {
-        let mut buffer = Vec::<u8>::with_capacity(data_size);
         reader.seek(std::io::SeekFrom::Start(44))?;
-        reader.read_to_end(&mut buffer)?;
-
-        Ok(buffer
-            .chunks(2)
-            // Covert from bytes to PCM f32
-            .map(|a| i16::from_le_bytes([a[0], a[1]]) as f32 / i16::MAX as f32)
-            .collect::<Vec<f32>>())
+        let mut result = Vec::<f32>::with_capacity(data_size / 2);
+        let mut buf = [0; 2];
+        while reader.read(&mut buf)? > 0 {
+            result.push(i16::from_le_bytes(buf) as f32 / i16::MAX as f32)
+        }
+        Ok(result)
     }
 
     fn load<T: Read + Seek>(reader: &mut T) -> Result<Self, std::io::Error> {
@@ -52,7 +50,7 @@ impl Wav {
             byte_rate: u32::from_le_bytes(Self::load_part(reader, 28)?),
             bits_per_sample: u16::from_le_bytes(Self::load_part(reader, 34)?),
             data_size: data_size,
-            data: Self::load_data(reader, data_size as usize)?
+            data: Self::load_data(reader, data_size as usize)?,
         };
 
         Ok(wav)
@@ -62,11 +60,10 @@ impl Wav {
 fn main() -> std::io::Result<()> {
     let file = OpenOptions::new()
         .read(true)
-        .open("/home/maxel/Development/rsdemo/data/test2.wav")?;
+        .open("/Users/maxmelander/Development/rsdemo/data/test2.wav")?;
     let mut buf_reader = BufReader::new(file);
 
     let wav = Wav::load(&mut buf_reader)?;
-
 
     let host = cpal::default_host();
     let device = host
@@ -84,11 +81,7 @@ fn main() -> std::io::Result<()> {
     Ok(())
 }
 
-fn run<T>(
-    device: &cpal::Device,
-    config: &cpal::StreamConfig,
-    wav: Arc<Wav>,
-) -> std::io::Result<()>
+fn run<T>(device: &cpal::Device, config: &cpal::StreamConfig, wav: Arc<Wav>) -> std::io::Result<()>
 where
     T: cpal::Sample,
 {
